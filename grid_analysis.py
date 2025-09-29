@@ -216,7 +216,7 @@ def get_nearest_node_with_distance(point, node_geometries, max_distance=500):
     Returns (node_id, distance) or (None, None) if no node is within range.
     """
     # Find the geometry of the nearest node
-    nearest_node_geom = nearest_points(point, node_geometries.unary_union)[1]
+    nearest_node_geom = nearest_points(point, node_geometries.union_all())[1]
     # Calculate distance to nearest node
     distance = point.distance(nearest_node_geom)
     
@@ -253,7 +253,9 @@ def calculate_distance_to_amenity(grid, centroids, pedestrian_edges, pedestrian_
     # Find nearest nodes for centroids and filter out those too far from network
     print("Finding nearest nodes and filtering hexagons...")
     
-    centroid_results = centroids['geometry'].apply(lambda p: get_nearest_node_with_distance(p, node_geometries))
+    # Use tqdm for finding nearest nodes
+    tqdm.pandas(desc="Finding nearest nodes")
+    centroid_results = centroids['geometry'].progress_apply(lambda p: get_nearest_node_with_distance(p, node_geometries))
     centroids['nearest_node'] = centroid_results.apply(lambda x: x[0])
     centroids['distance_to_network'] = centroid_results.apply(lambda x: x[1])
     
