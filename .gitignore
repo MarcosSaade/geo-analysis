@@ -5,3 +5,5 @@ __pycache__/
 .DS_Store
 *.png
 *.jpg
+data_overview.png
+urban_indicators.png

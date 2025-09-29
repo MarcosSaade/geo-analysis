@@ -110,7 +110,9 @@ def load_and_visualize_data():
     ax.legend(handles=legend_elements, loc='upper right')
     
     plt.tight_layout()
-    plt.show()
+    plt.savefig('data_overview.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    print("Data overview plot saved as 'data_overview.png'")
     
     return boundary, pedestrian_edges, pedestrian_nodes, population, poi_food, grid, centroids
 
@@ -274,7 +276,9 @@ def calculate_distance_to_amenity(grid, centroids, pedestrian_edges, pedestrian_
     print("Calculating shortest path distances...")
     print(f"Processing {len(centroids_with_network)} hexagons instead of {len(centroids)}")
     
-    centroids_with_network['dist_to_amenity'] = centroids_with_network['nearest_node'].apply(
+    # Use tqdm to show progress for distance calculations
+    tqdm.pandas(desc="Calculating distances")
+    centroids_with_network['dist_to_amenity'] = centroids_with_network['nearest_node'].progress_apply(
         lambda start_node: calculate_min_distance(start_node, poi_nodes, G)
     )
     
@@ -323,7 +327,9 @@ def visualize_indicators(grid):
     axes[1,1].axis('off')
     
     plt.tight_layout()
-    plt.show()
+    plt.savefig('urban_indicators.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    print("Urban indicators plot saved as 'urban_indicators.png'")
     
     # Print summary statistics
     print("\n=== SUMMARY STATISTICS ===")
