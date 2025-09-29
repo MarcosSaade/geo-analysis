@@ -267,7 +267,9 @@ def calculate_distance_to_amenity(grid, centroids, pedestrian_edges, pedestrian_
     print(f"Analyzing {len(centroids_with_network)} hexagons with nearby network access")
     
     # Process POIs (use larger distance tolerance)
-    poi_food['nearest_node'] = poi_food['geometry'].apply(
+    print("Finding nearest nodes for POIs...")
+    tqdm.pandas(desc="Processing POIs")
+    poi_food['nearest_node'] = poi_food['geometry'].progress_apply(
         lambda p: get_nearest_node_with_distance(p, node_geometries, max_distance=1000)[0]
     )
     
