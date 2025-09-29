@@ -23,6 +23,7 @@ import networkx as nx
 from shapely.ops import nearest_points
 import contextily as cx
 from tqdm import tqdm
+import pickle
 
 
 def download_data():
@@ -233,6 +234,23 @@ def calculate_distance_to_amenity(grid, centroids, pedestrian_edges, pedestrian_
     """Calculate distance to nearest amenity for each hexagonal grid cell."""
     print("\nStep 6: Calculating distance to nearest amenity...")
     
+    # Check if cached results exist
+    cache_file = "distance_to_amenity_cache.pkl"
+    if os.path.exists(cache_file):
+        print("Found cached distance calculations, loading...")
+        try:
+            with open(cache_file, 'rb') as f:
+                cached_data = pickle.load(f)
+            
+            # Merge cached results with grid
+            grid = grid.merge(cached_data[['id', 'dist_to_amenity']], on='id', how='left')
+            print("✅ Cached distance data loaded successfully!")
+            return grid
+            
+        except Exception as e:
+            print(f"⚠️  Error loading cache: {e}")
+            print("Proceeding with fresh calculation...")
+    
     # Create network graph
     G = nx.from_pandas_edgelist(pedestrian_edges, 'u', 'v', ['length'])
     
@@ -281,6 +299,16 @@ def calculate_distance_to_amenity(grid, centroids, pedestrian_edges, pedestrian_
     
     # Merge with grid
     grid = grid.merge(centroids[['id', 'dist_to_amenity']], on='id', how='left')
+    
+    # Save results to cache for future runs
+    print("Saving distance calculations to cache...")
+    try:
+        cache_data = grid[['id', 'dist_to_amenity']].copy()
+        with open(cache_file, 'wb') as f:
+            pickle.dump(cache_data, f)
+        print("✅ Distance calculations cached successfully!")
+    except Exception as e:
+        print(f"⚠️  Warning: Could not save cache: {e}")
     
     print("Distance to amenity calculation completed")
     return grid
@@ -352,6 +380,14 @@ def main():
     
     # Step 4: Visualize results
     visualize_indicators(grid)
+    
+    # Save final processed grid with all indicators
+    print("\nSaving final results...")
+    try:
+        grid.to_file("processed_grid_results.gpkg", driver="GPKG")
+        print("✅ Final grid results saved to 'processed_grid_results.gpkg'")
+    except Exception as e:
+        print(f"⚠️  Warning: Could not save final results: {e}")
     
     print("\n✅ Analysis completed successfully!")
     return grid

@@ -7,3 +7,5 @@ __pycache__/
 *.jpg
 data_overview.png
 urban_indicators.png
+distance_to_amenity_cache.pkl
+processed_grid_results.gpkg
