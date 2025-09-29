@@ -75,7 +75,6 @@ def load_and_visualize_data():
     # Print CRS information
     print(f"Boundary CRS: {boundary.crs}")
     print(f"Grid CRS: {grid.crs}")
-    print(f"All layers should have the same CRS for proper analysis")
 
     # Create visualization
     fig, ax = plt.subplots(1, 1, figsize=(12, 10))
@@ -127,19 +126,9 @@ def calculate_population_indicator(grid, population):
     # Perform spatial join to count population points within each grid cell
     population_in_grid = gpd.sjoin(population, grid, how='inner', predicate='within')
     
-    # Find the population column (it might have a different name)
-    pop_columns = [col for col in population_in_grid.columns if 'pop' in col.lower() or 'count' in col.lower()]
-    if pop_columns:
-        pop_column = pop_columns[0]
-        print(f"Using population column: {pop_column}")
-    else:
-        # If no population column found, count the number of points per grid cell
-        print("No population column found, counting population points per grid cell")
-        pop_summary = population_in_grid.groupby('id').size().reset_index(name='total_population')
-        grid = grid.merge(pop_summary, on='id', how='left')
-        grid['total_population'].fillna(0, inplace=True)
-        print(f"Population indicator calculated for {len(grid)} grid cells")
-        return grid
+    # Use the known population column name
+    pop_column = 'Counts'
+    print(f"Using population column: {pop_column}")
     
     # Group by grid cell ID and sum population
     pop_summary = population_in_grid.groupby('id')[pop_column].sum().reset_index()
