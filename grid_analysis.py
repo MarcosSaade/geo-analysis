@@ -22,6 +22,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 from shapely.ops import nearest_points
 import contextily as cx
+from tqdm import tqdm
 
 
 def download_data():
@@ -181,7 +182,8 @@ def calculate_network_density(grid, pedestrian_edges):
     # Clip pedestrian edges to each grid cell and sum lengths
     network_densities = []
     
-    for idx, cell in grid.iterrows():
+    # Use tqdm to show progress
+    for idx, cell in tqdm(grid.iterrows(), total=len(grid), desc="Processing grid cells"):
         try:
             # Clip edges to the current grid cell
             clipped_edges = gpd.clip(pedestrian_edges, cell.geometry)
@@ -197,7 +199,7 @@ def calculate_network_density(grid, pedestrian_edges):
             network_densities.append(density)
             
         except Exception as e:
-            print(f"Error processing cell {cell['id']}: {e}")
+            tqdm.write(f"Error processing cell {cell['id']}: {e}")
             network_densities.append(0)
     
     grid['network_density'] = network_densities
