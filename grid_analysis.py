@@ -257,21 +257,39 @@ def calculate_distance_to_amenity(grid, centroids, pedestrian_edges, pedestrian_
     # Create spatial index for faster lookups
     node_geometries = pedestrian_nodes.set_index('osmid')['geometry']
     
-    # Find nearest nodes for centroids and filter out those too far from network
-    print("Finding nearest nodes and filtering hexagons...")
+    # Better filtering: Check which hexagons actually contain pedestrian network
+    print("Filtering hexagons that contain pedestrian network...")
     
-    # Use tqdm for finding nearest nodes
-    tqdm.pandas(desc="Finding nearest nodes")
-    centroid_results = centroids['geometry'].progress_apply(lambda p: get_nearest_node_with_distance(p, node_geometries))
-    centroids['nearest_node'] = centroid_results.apply(lambda x: x[0])
-    centroids['distance_to_network'] = centroid_results.apply(lambda x: x[1])
+    # Find hexagons that actually intersect with pedestrian edges
+    print("Checking spatial intersection with pedestrian network...")
+    hexagons_with_network = []
     
-    # Filter out centroids that don't have nearby network nodes
-    centroids_with_network = centroids[centroids['nearest_node'].notna()].copy()
+    for idx, row in tqdm(grid.iterrows(), total=len(grid), desc="Checking network coverage"):
+        # Check if this hexagon intersects with any pedestrian edges
+        intersects = pedestrian_edges.intersects(row.geometry).any()
+        if intersects:
+            hexagons_with_network.append(row['id'])
+    
+    # Filter centroids to only those in hexagons with network
+    centroids_with_network = centroids[centroids['id'].isin(hexagons_with_network)].copy()
     excluded_count = len(centroids) - len(centroids_with_network)
     
-    print(f"Excluded {excluded_count} hexagons that are too far from pedestrian network")
-    print(f"Analyzing {len(centroids_with_network)} hexagons with nearby network access")
+    print(f"Excluded {excluded_count} hexagons without pedestrian network")
+    print(f"Analyzing {len(centroids_with_network)} hexagons with actual network coverage")
+    
+    # Find nearest nodes only for centroids in hexagons with network
+    print("Finding nearest nodes for hexagons with network...")
+    tqdm.pandas(desc="Finding nearest nodes")
+    centroid_results = centroids_with_network['geometry'].progress_apply(lambda p: get_nearest_node_with_distance(p, node_geometries, max_distance=1000))
+    centroids_with_network['nearest_node'] = centroid_results.apply(lambda x: x[0])
+    centroids_with_network['distance_to_network'] = centroid_results.apply(lambda x: x[1])
+    
+    # Remove any that still don't have nearby nodes (shouldn't happen but safety check)
+    centroids_with_network = centroids_with_network[centroids_with_network['nearest_node'].notna()].copy()
+    final_excluded = len(centroids) - len(centroids_with_network)
+    
+    if final_excluded > excluded_count:
+        print(f"Additional {final_excluded - excluded_count} hexagons excluded due to no nearby network nodes")
     
     # Process POIs (use larger distance tolerance)
     print("Finding nearest nodes for POIs...")
@@ -293,9 +311,13 @@ def calculate_distance_to_amenity(grid, centroids, pedestrian_edges, pedestrian_
         lambda start_node: calculate_min_distance(start_node, poi_nodes, G)
     )
     
-    # Merge results back
+    # Merge results back - only for hexagons with network coverage
     centroids['dist_to_amenity'] = None
-    centroids.loc[centroids_with_network.index, 'dist_to_amenity'] = centroids_with_network['dist_to_amenity']
+    # Use ID-based merging to ensure correct alignment
+    network_results = centroids_with_network[['id', 'dist_to_amenity']].set_index('id')
+    for idx, row in centroids.iterrows():
+        if row['id'] in network_results.index:
+            centroids.loc[idx, 'dist_to_amenity'] = network_results.loc[row['id'], 'dist_to_amenity']
     
     # Merge with grid
     grid = grid.merge(centroids[['id', 'dist_to_amenity']], on='id', how='left')
