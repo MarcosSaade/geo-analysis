@@ -26,52 +26,48 @@ from tqdm import tqdm
 import pickle
 
 
-def download_data():
+def download_data(city_name, urls):
     """Download geospatial data files if they don't already exist."""
-    print("Step 1: Downloading geospatial data...")
+    print(f"Step 1: Downloading geospatial data for {city_name}...")
     
-    # Dictionary of data names and their download URLs
-    urls = {
-        "boundary": "https://www.dropbox.com/scl/fi/h5oo7jrfkg146i9urm0i7/Queretaro_ZM.gpkg?rlkey=1hs3pn4me5mnqveg8xdlhfutx&st=qhccuqv2&dl=1",
-        "pedestrian_network": "https://www.dropbox.com/scl/fi/fal6u5a1jb7igr0x012e2/queretaro_pedestrian_network.gpkg?rlkey=3zgofsbc0oj2a03l9nqc2iq96&st=h1bx74hs&dl=1",
-        "population_count": "https://www.dropbox.com/scl/fi/t0qa7zijv60dad1rodqag/ZM_queretaro_pop_count.gpkg?rlkey=eheg5lt9j2aguuf4ofvzhj4l3&st=fsrvgpb7&dl=1",
-        "poi_food": "https://www.dropbox.com/scl/fi/rbfyiq7f00dvpccca7r4m/ZM_queretaro_poi_food.gpkg?rlkey=4a1ne13mruvgb64p7onoele0j&st=yhqlku75&dl=1",
-        "grid": "https://www.dropbox.com/scl/fi/fkhlsb226d1x9spirc47l/Queretaro_ZM_grid.gpkg?rlkey=eemz0bxofob6r62n23x411kvc&st=4we64nw7&dl=1",
-        "centroids": "https://www.dropbox.com/scl/fi/w48l1qtoe3yyfzhsf7lq6/Queretaro_ZM_centroids.gpkg?rlkey=hx93d23vigyfnb0p4xy83y416&st=6mwlmm27&dl=1"
-    }
-
+    # Create city-specific directory
+    city_dir = f"data_{city_name}"
+    os.makedirs(city_dir, exist_ok=True)
+    
     # Download each file if it doesn't exist
     for name, url in urls.items():
-        filename = f"{name}.gpkg"
+        filename = os.path.join(city_dir, f"{name}.gpkg")
         
         if os.path.exists(filename):
-            print(f"⏭️  File {filename} already exists, skipping download")
+            print(f"⏭️  File {name}.gpkg already exists, skipping download")
             continue
         
         try:
-            print(f"⬇️  Downloading {filename}...")
+            print(f"⬇️  Downloading {name}.gpkg...")
             response = requests.get(url, stream=True)
             response.raise_for_status()
             with open(filename, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
-            print(f"✅ Successfully downloaded {filename}")
+            print(f"✅ Successfully downloaded {name}.gpkg")
         except Exception as e:
             print(f"❌ Error downloading {name}: {e}")
-
-
-def load_and_visualize_data():
-    """Load geospatial data and create initial visualization."""
-    print("\nStep 2: Loading and visualizing data...")
     
-    # Load all data layers
-    boundary = gpd.read_file("boundary.gpkg")
-    pedestrian_edges = gpd.read_file("pedestrian_network.gpkg", layer='edges')
-    pedestrian_nodes = gpd.read_file("pedestrian_network.gpkg", layer='nodes')
-    population = gpd.read_file("population_count.gpkg")
-    poi_food = gpd.read_file("poi_food.gpkg")
-    grid = gpd.read_file("grid.gpkg")
-    centroids = gpd.read_file("centroids.gpkg")
+    return city_dir
+
+
+def load_and_visualize_data(city_name, city_dir):
+    """Load geospatial data and create initial visualization."""
+    print(f"\nStep 2: Loading and visualizing data for {city_name}...")
+    
+    # Load all data layers from city-specific directory
+    boundary = gpd.read_file(os.path.join(city_dir, "boundary.gpkg"))
+    pedestrian_edges = gpd.read_file(os.path.join(city_dir, "pedestrian_network.gpkg"), layer='edges')
+    pedestrian_nodes = gpd.read_file(os.path.join(city_dir, "pedestrian_network.gpkg"), layer='nodes')
+    population = gpd.read_file(os.path.join(city_dir, "population_count.gpkg"))
+    poi_food = gpd.read_file(os.path.join(city_dir, "poi_food.gpkg"))
+    grid = gpd.read_file(os.path.join(city_dir, "grid.gpkg"))
+    centroids = gpd.read_file(os.path.join(city_dir, "centroids.gpkg"))
 
     # Print CRS information
     print(f"Boundary CRS: {boundary.crs}")
@@ -110,16 +106,17 @@ def load_and_visualize_data():
     ax.legend(handles=legend_elements, loc='upper right')
     
     plt.tight_layout()
-    plt.savefig('data_overview.png', dpi=300, bbox_inches='tight')
+    output_file = os.path.join(city_dir, f'data_overview_{city_name}.png')
+    plt.savefig(output_file, dpi=300, bbox_inches='tight')
     plt.close()
-    print("Data overview plot saved as 'data_overview.png'")
+    print(f"Data overview plot saved as '{output_file}'")
     
     return boundary, pedestrian_edges, pedestrian_nodes, population, poi_food, grid, centroids
 
 
-def calculate_population_indicator(grid, population):
+def calculate_population_indicator(grid, population, city_name):
     """Calculate total population for each hexagonal grid cell."""
-    print("\nStep 3: Calculating population indicator...")
+    print(f"\nStep 3: Calculating population indicator for {city_name}...")
     
     # Check what columns are available in population data
     print(f"Population data columns: {list(population.columns)}")
@@ -143,9 +140,9 @@ def calculate_population_indicator(grid, population):
     return grid
 
 
-def calculate_intersection_density(grid, pedestrian_nodes):
+def calculate_intersection_density(grid, pedestrian_nodes, city_name):
     """Calculate intersection density for each hexagonal grid cell."""
-    print("\nStep 4: Calculating intersection density...")
+    print(f"\nStep 4: Calculating intersection density for {city_name}...")
     
     # Perform spatial join to count nodes (intersections) within each grid cell
     nodes_in_grid = gpd.sjoin(pedestrian_nodes, grid, how='inner', predicate='within')
@@ -167,15 +164,15 @@ def calculate_intersection_density(grid, pedestrian_nodes):
     return grid
 
 
-def calculate_network_density(grid, pedestrian_edges):
+def calculate_network_density(grid, pedestrian_edges, city_name):
     """Calculate network density for each hexagonal grid cell."""
-    print("\nStep 5: Calculating network density...")
+    print(f"\nStep 5: Calculating network density for {city_name}...")
     
     # Clip pedestrian edges to each grid cell and sum lengths
     network_densities = []
     
     # Use tqdm to show progress
-    for idx, cell in tqdm(grid.iterrows(), total=len(grid), desc="Processing grid cells"):
+    for idx, cell in tqdm(grid.iterrows(), total=len(grid), desc=f"Processing {city_name} grid cells"):
         try:
             # Clip edges to the current grid cell
             clipped_edges = gpd.clip(pedestrian_edges, cell.geometry)
@@ -230,12 +227,12 @@ def calculate_min_distance(start_node, target_nodes, graph):
         return float('inf')
 
 
-def calculate_distance_to_amenity(grid, centroids, pedestrian_edges, pedestrian_nodes, poi_food):
+def calculate_distance_to_amenity(grid, centroids, pedestrian_edges, pedestrian_nodes, poi_food, city_name, city_dir):
     """Calculate distance to nearest amenity for each hexagonal grid cell."""
-    print("\nStep 6: Calculating distance to nearest amenity...")
+    print(f"\nStep 6: Calculating distance to nearest amenity for {city_name}...")
     
     # Check if cached results exist
-    cache_file = "distance_to_amenity_cache.pkl"
+    cache_file = os.path.join(city_dir, "distance_to_amenity_cache.pkl")
     if os.path.exists(cache_file):
         print("Found cached distance calculations, loading...")
         try:
@@ -264,7 +261,7 @@ def calculate_distance_to_amenity(grid, centroids, pedestrian_edges, pedestrian_
     print("Checking spatial intersection with pedestrian network...")
     hexagons_with_network = []
     
-    for idx, row in tqdm(grid.iterrows(), total=len(grid), desc="Checking network coverage"):
+    for idx, row in tqdm(grid.iterrows(), total=len(grid), desc=f"Checking {city_name} network coverage"):
         # Check if this hexagon intersects with any pedestrian edges
         intersects = pedestrian_edges.intersects(row.geometry).any()
         if intersects:
@@ -336,13 +333,13 @@ def calculate_distance_to_amenity(grid, centroids, pedestrian_edges, pedestrian_
     return grid
 
 
-def visualize_indicators(grid):
+def visualize_indicators(grid, city_name, city_dir):
     """Create visualizations for all calculated indicators."""
-    print("\nStep 7: Creating visualizations...")
+    print(f"\nStep 7: Creating visualizations for {city_name}...")
     
     # Create 2x2 subplot
     fig, axes = plt.subplots(2, 2, figsize=(16, 14))
-    fig.suptitle('Urban Accessibility Indicators - Queretaro', fontsize=16, fontweight='bold')
+    fig.suptitle(f'Urban Accessibility Indicators - {city_name}', fontsize=16, fontweight='bold')
     
     # Population
     grid.plot(column='total_population', ax=axes[0,0], legend=True, 
@@ -370,12 +367,13 @@ def visualize_indicators(grid):
     axes[1,1].axis('off')
     
     plt.tight_layout()
-    plt.savefig('urban_indicators.png', dpi=300, bbox_inches='tight')
+    output_file = os.path.join(city_dir, f'urban_indicators_{city_name}.png')
+    plt.savefig(output_file, dpi=300, bbox_inches='tight')
     plt.close()
-    print("Urban indicators plot saved as 'urban_indicators.png'")
+    print(f"Urban indicators plot saved as '{output_file}'")
     
     # Print summary statistics
-    print("\n=== SUMMARY STATISTICS ===")
+    print(f"\n=== SUMMARY STATISTICS FOR {city_name.upper()} ===")
     print(f"Total Population: {grid['total_population'].sum():,.0f}")
     print(f"Average Intersection Density: {grid['intersection_density'].mean():.2f} per km²")
     print(f"Average Network Density: {grid['network_density'].mean():.0f} m/km²")
@@ -383,37 +381,112 @@ def visualize_indicators(grid):
     print(f"Hexagons with network access: {grid['dist_to_amenity'].notna().sum()}/{len(grid)}")
 
 
-def main():
-    """Main execution function."""
-    print("Urban Accessibility Indicators Analysis")
-    print("=====================================")
+def process_city(city_name, city_urls):
+    """Process a single city - download data, calculate indicators, and visualize."""
+    print(f"\n{'='*80}")
+    print(f"PROCESSING CITY: {city_name.upper()}")
+    print(f"{'='*80}\n")
     
     # Step 1: Download data
-    download_data()
+    city_dir = download_data(city_name, city_urls)
     
     # Step 2: Load and visualize data
-    boundary, pedestrian_edges, pedestrian_nodes, population, poi_food, grid, centroids = load_and_visualize_data()
+    boundary, pedestrian_edges, pedestrian_nodes, population, poi_food, grid, centroids = load_and_visualize_data(city_name, city_dir)
     
     # Step 3: Calculate indicators
-    grid = calculate_population_indicator(grid, population)
-    grid = calculate_intersection_density(grid, pedestrian_nodes)
-    grid = calculate_network_density(grid, pedestrian_edges)
-    grid = calculate_distance_to_amenity(grid, centroids, pedestrian_edges, pedestrian_nodes, poi_food)
+    grid = calculate_population_indicator(grid, population, city_name)
+    grid = calculate_intersection_density(grid, pedestrian_nodes, city_name)
+    grid = calculate_network_density(grid, pedestrian_edges, city_name)
+    # grid = calculate_distance_to_amenity(grid, centroids, pedestrian_edges, pedestrian_nodes, poi_food, city_name, city_dir)
     
     # Step 4: Visualize results
-    visualize_indicators(grid)
+    visualize_indicators(grid, city_name, city_dir)
     
     # Save final processed grid with all indicators
-    print("\nSaving final results...")
+    print(f"\nSaving final results for {city_name}...")
     try:
-        grid.to_file("processed_grid_results.gpkg", driver="GPKG")
-        print("✅ Final grid results saved to 'processed_grid_results.gpkg'")
+        output_file = os.path.join(city_dir, f"processed_grid_results_{city_name}.gpkg")
+        grid.to_file(output_file, driver="GPKG")
+        print(f"✅ Final grid results saved to '{output_file}'")
     except Exception as e:
         print(f"⚠️  Warning: Could not save final results: {e}")
     
-    print("\n✅ Analysis completed successfully!")
+    print(f"\n✅ Analysis completed successfully for {city_name}!")
     return grid
 
 
+def main():
+    """Main execution function."""
+    print("Urban Accessibility Indicators Analysis - Multi-City Processing")
+    print("="*80)
+    
+    # Dictionary of cities and their data URLs
+    urls = {
+        "Queretaro": {
+            "boundary": "https://www.dropbox.com/scl/fi/h5oo7jrfkg146i9urm0i7/Queretaro_ZM.gpkg?rlkey=1hs3pn4me5mnqveg8xdlhfutx&st=qhccuqv2&dl=1",
+            "pedestrian_network": "https://www.dropbox.com/scl/fi/fal6u5a1jb7igr0x012e2/queretaro_pedestrian_network.gpkg?rlkey=3zgofsbc0oj2a03l9nqc2iq96&st=h1bx74hs&dl=1",
+            "population_count": "https://www.dropbox.com/scl/fi/t0qa7zijv60dad1rodqag/ZM_queretaro_pop_count.gpkg?rlkey=eheg5lt9j2aguuf4ofvzhj4l3&st=fsrvgpb7&dl=1",
+            "poi_food": "https://www.dropbox.com/scl/fi/rbfyiq7f00dvpccca7r4m/ZM_queretaro_poi_food.gpkg?rlkey=4a1ne13mruvgb64p7onoele0j&st=yhqlku75&dl=1",
+            "grid": "https://www.dropbox.com/scl/fi/fkhlsb226d1x9spirc47l/Queretaro_ZM_grid.gpkg?rlkey=eemz0bxofob6r62n23x411kvc&st=4we64nw7&dl=1",
+            "centroids": "https://www.dropbox.com/scl/fi/w48l1qtoe3yyfzhsf7lq6/Queretaro_ZM_centroids.gpkg?rlkey=hx93d23vigyfnb0p4xy83y416&st=6mwlmm27&dl=1"
+        },
+        "Guadalajara": {
+        "boundary": "https://www.dropbox.com/scl/fi/64c5zr15skwcjzeg6zize/Guadalajara_ZM.gpkg?rlkey=lbbof4a3zg2wk2qza62sepywj&st=zqnn7ter&dl=1",
+        "pedestrian_network": "https://www.dropbox.com/scl/fi/nn6k3oqmtnlqhh495gf2g/guadalajara_pedestrian_network.gpkg?rlkey=evta4lq5sich8n4bxi32acq9m&st=7q6v5ch4&dl=1",
+        "population_count": "https://www.dropbox.com/scl/fi/9zqpenj5of6dh3roe415d/ZM_CDMX_pop_count.gpkg?rlkey=pveese4i72mzux0xnu83d3emu&st=sg1395re&dl=1",
+        "poi_food": "https://www.dropbox.com/scl/fi/1lek1qup0pwm3zr86hn45/ZM_guadalajara_poi_food.gpkg?rlkey=a3s3ly0bh3gld2twcezb9fz4r&st=zv8ibce5&dl=1",
+        "grid": "https://www.dropbox.com/scl/fi/3o6sigukwuh7houty9b9t/Guadalajara_ZM_grid.gpkg?rlkey=w0b5jyk8296gaer2dbhug8yxf&st=1wpl6k4z&dl=1",
+        "centroids": "https://www.dropbox.com/scl/fi/3o6sigukwuh7houty9b9t/Guadalajara_ZM_grid.gpkg?rlkey=w0b5jyk8296gaer2dbhug8yxf&st=7b9trc63&dl=1"
+        },
+
+    "Tijuana": {
+        "boundary": "https://www.dropbox.com/scl/fi/uvip3ravz1ky2udyhhtk3/Tijuana_ZM.gpkg?rlkey=5ghpcfzjnh6h6mmsrcbv51327&st=8c97njjq&dl=1",
+        "pedestrian_network": "https://www.dropbox.com/scl/fi/dc89efbp4iqohy989bto6/tijuana_pedestrian_network.gpkg?rlkey=eb7tpq2pr7opuuainzqby0huy&st=v4wg6iit&dl=1",
+        "population_count": "https://www.dropbox.com/scl/fi/hziyx0gf2myncb4wilih3/ZM_tijuana_pop_count.gpkg?rlkey=6um1n6w6fbcekpu1k0vvu2nil&st=x9hy6cq9&dl=1",
+        "poi_food": "https://www.dropbox.com/scl/fi/dlih2n7kqknuccgd0s5ub/ZM_tijuana_poi_food.gpkg?rlkey=lunh13tjtnf6l6x8oetcfr3tb&st=usamjfrf&dl=1",
+        "grid": "https://www.dropbox.com/scl/fi/iemg8427nmml2hl2ji39i/Tijuana_ZM_grid.gpkg?rlkey=4jft3stjgedhe6yh8jg6oox9l&st=963o149j&dl=1",
+        "centroids": "https://www.dropbox.com/scl/fi/wxb0vwfk4r43xlaqyr8jn/Tijuana_ZM_centroids.gpkg?rlkey=b0npl9dlabplfi7vtybjuxgsz&st=r8jz18gm&dl=1"
+        }
+   }
+
+    # Process each city
+    results = {}
+    total_cities = len(urls)
+    
+    for idx, (city_name, city_urls) in enumerate(urls.items(), 1):
+        print(f"\n\n{'#'*80}")
+        print(f"# CITY {idx}/{total_cities}: {city_name}")
+        print(f"{'#'*80}")
+        
+        try:
+            result_grid = process_city(city_name, city_urls)
+            results[city_name] = result_grid
+        except Exception as e:
+            print(f"\n❌ ERROR processing {city_name}: {e}")
+            print("Continuing with next city...")
+            continue
+    
+    # Final summary
+    print(f"\n\n{'='*80}")
+    print("FINAL SUMMARY - ALL CITIES")
+    print(f"{'='*80}")
+    print(f"Total cities processed: {len(results)}/{total_cities}")
+    for city_name in results.keys():
+        print(f"  ✅ {city_name}")
+    
+    if len(results) < total_cities:
+        failed_cities = set(urls.keys()) - set(results.keys())
+        print(f"\nFailed cities: {len(failed_cities)}")
+        for city_name in failed_cities:
+            print(f"  ❌ {city_name}")
+    
+    print(f"\n{'='*80}")
+    print("✅ Multi-city analysis completed!")
+    print(f"{'='*80}\n")
+    
+    return results
+
+
 if __name__ == "__main__":
+    results = main()
     result_grid = main()
